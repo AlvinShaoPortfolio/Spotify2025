@@ -2,8 +2,10 @@ import requests #allows me to make http requests
 import os #lets me access env variables
 from dotenv import load_dotenv #lets me load the env file
 
-
 load_dotenv() #load env file into memory
+
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
@@ -15,7 +17,6 @@ def get_access_token():
         "client_id": SPOTIFY_CLIENT_ID,
         "client_secret": SPOTIFY_CLIENT_SECRET
     }
-
 
     response = requests.post(url, headers=headers, data=data, auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET))
 
