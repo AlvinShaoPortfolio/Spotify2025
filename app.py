@@ -8,7 +8,7 @@ load_dotenv() #load env file into memory
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-artist_List = ["Drake", "Kendrick Lamar", "Bruno Mars"]
+artist_List = ["Bruno Mars"]
 
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
@@ -41,25 +41,28 @@ def get_artist_ID(name, token, limit = 1): #artistID is a string
 
     return response.json()["artists"]["items"][0]["id"]
 
-def get_artist_albums_info(id, token): #api call the album ids along with the number of tracks
+def get_artist_albums_info(id, token, limit = 50): #api call the album ids along with the number of tracks
     url = f"https://api.spotify.com/v1/artists/{id}/albums"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
-        "include_groups": "album, single"
+        "include_groups": "album,single", #must be album,single no space idk why compiler needs it to be like that
+        "limit": limit
     }
 
-    response = requests.get(url, headers = headers, params = params)
-    response.raise_for_status()
-
-    list_of_albums = response.json()["items"]
-
     album_IDS = []
+    while(url != None):
+        response = requests.get(url, headers = headers, params = params)
+        response.raise_for_status()
 
-    for album in list_of_albums:
-        album_IDS.append({
-            "id" : album["id"],
-            "total_tracks" : album["total_tracks"]
-        })
+        list_of_albums = response.json()
+
+        for album in list_of_albums["items"]:
+            album_IDS.append({
+                "name": album["name"],
+                "id" : album["id"],
+                "total_tracks" : album["total_tracks"]
+            })
+        url = list_of_albums.get("next")
     return album_IDS
 
 def get_album_songs(album, token, limit = 50):
@@ -93,6 +96,19 @@ def get_artist_toptracks(id, token):
 
     return top_song_list
 
+def get_set_of_songs(artist_ID, token):
+    albums = get_artist_albums_info(artist_ID, token)
+
+    set_of_songs = set()
+
+    for album in albums: #maybe possible to get lower timp comp? not sure how though to improve 
+        songs_in_album = get_album_songs(album, token)
+
+        for song in songs_in_album:
+            if song not in set_of_songs:
+                set_of_songs.add(song)
+
+    return set_of_songs
 
 if __name__ == "__main__":  
     token = get_access_token()
@@ -102,15 +118,8 @@ if __name__ == "__main__":
     if(artist_ID == None):
         print("No artists found")
    
-    albums = get_artist_albums_info(artist_ID, token)
-
-    set_of_songs = set()
-
-    for album in albums:
-        songs_in_album = get_album_songs(album, token)
-        for song in songs_in_album:
-            if song not in set_of_songs:
-                set_of_songs.add(song)
-
+    set_of_songs = get_set_of_songs(artist_ID, token)
 
     print(set_of_songs)
+
+   
