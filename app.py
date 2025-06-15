@@ -28,7 +28,7 @@ def get_access_token():
     response.raise_for_status()
     return response.json()["access_token"]
 
-def get_artist_ID(name, token, limit = 1): #returns a string
+def get_artist_ID(name, token, limit = 1): #artistID is a string
     url = "https://api.spotify.com/v1/search"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
@@ -41,19 +41,57 @@ def get_artist_ID(name, token, limit = 1): #returns a string
 
     return response.json()["artists"]["items"][0]["id"]
 
-def get_artist_tracks(id, token):
+def get_artist_albums_info(id, token): #api call the album ids along with the number of tracks
+    url = f"https://api.spotify.com/v1/artists/{id}/albums"
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {
+        "include_groups": "album, single"
+    }
+
+    response = requests.get(url, headers = headers, params = params)
+    response.raise_for_status()
+
+    list_of_albums = response.json()["items"]
+
+    album_IDS = []
+
+    for album in list_of_albums:
+        album_IDS.append({
+            "id" : album["id"],
+            "total_tracks" : album["total_tracks"]
+        })
+    return album_IDS
+
+def get_album_songs(album, token, limit = 50):
+    url = f"https://api.spotify.com/v1/albums/{album.get("id")}/tracks"
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {
+        "limit": limit
+    }
+
+    response = requests.get(url, headers = headers, params = params)
+    response.raise_for_status()
+
+    list_of_songs = []
+
+    for i in range(album.get("total_tracks")):
+        list_of_songs.append(response.json()["items"][i]["name"])
+
+    return list_of_songs
+
+def get_artist_toptracks(id, token):
     url = f"https://api.spotify.com/v1/artists/{id}/top-tracks"
     headers = {"Authorization": f"Bearer {token}"}
 
     response = requests.get(url, headers = headers)
     response.raise_for_status()
 
-    song_list = []
+    top_song_list = []
 
     for i in range(10):
-        song_list.append(response.json()["tracks"][i]["name"])
+        top_song_list.append(response.json()["tracks"][i]["name"])
 
-    return song_list
+    return top_song_list
 
 
 if __name__ == "__main__":  
@@ -63,5 +101,16 @@ if __name__ == "__main__":
 
     if(artist_ID == None):
         print("No artists found")
-    
-    print(get_artist_tracks(artist_ID, token))
+   
+    albums = get_artist_albums_info(artist_ID, token)
+
+    set_of_songs = set()
+
+    for album in albums:
+        songs_in_album = get_album_songs(album, token)
+        for song in songs_in_album:
+            if song not in set_of_songs:
+                set_of_songs.add(song)
+
+
+    print(set_of_songs)
