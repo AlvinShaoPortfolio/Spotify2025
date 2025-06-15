@@ -8,7 +8,7 @@ load_dotenv() #load env file into memory
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-artist_List = ["Bruno Mars"]
+artist_List = ["Kendrick Lamar"]
 
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
@@ -76,39 +76,32 @@ def get_album_songs(album, token, limit = 50):
     response.raise_for_status()
 
     list_of_songs = []
+    list_of_popularity = []
 
     for i in range(album.get("total_tracks")):
         list_of_songs.append(response.json()["items"][i]["name"])
+        list_of_popularity.append(response.json()["items"][i]["popularity"])
 
-    return list_of_songs
-
-def get_artist_toptracks(id, token):
-    url = f"https://api.spotify.com/v1/artists/{id}/top-tracks"
-    headers = {"Authorization": f"Bearer {token}"}
-
-    response = requests.get(url, headers = headers)
-    response.raise_for_status()
-
-    top_song_list = []
-
-    for i in range(10):
-        top_song_list.append(response.json()["tracks"][i]["name"])
-
-    return top_song_list
+    return {list_of_songs, list_of_popularity}
 
 def get_set_of_songs(artist_ID, token):
     albums = get_artist_albums_info(artist_ID, token)
 
     set_of_songs = set()
+    excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub"}
 
     for album in albums: #maybe possible to get lower timp comp? not sure how though to improve 
         songs_in_album = get_album_songs(album, token)
 
         for song in songs_in_album:
-            if song not in set_of_songs:
+            if (song not in set_of_songs) and not any(keyword in song.lower() for keyword in excluded_keywords):
                 set_of_songs.add(song)
 
     return set_of_songs
+
+
+
+
 
 if __name__ == "__main__":  
     token = get_access_token()
