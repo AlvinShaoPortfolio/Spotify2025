@@ -49,7 +49,7 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
         "limit": limit
     }
 
-    album_IDS = []
+    list_of_album_info = []
     while(url != None):
         response = requests.get(url, headers = headers, params = params)
         response.raise_for_status()
@@ -57,16 +57,15 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
         list_of_albums = response.json()
 
         for album in list_of_albums["items"]:
-            album_IDS.append({
+            list_of_album_info.append({
                 "name": album["name"],
                 "id" : album["id"],
-                "total_tracks" : album["total_tracks"]
             })
         url = list_of_albums.get("next")
-    return album_IDS
+    return list_of_album_info
 
-def get_album_songs(album, token, limit = 50):
-    url = f"https://api.spotify.com/v1/albums/{album.get("id")}/tracks"
+def get_album_songs(album_info, token, limit = 50):
+    url = f"https://api.spotify.com/v1/albums/{album_info.get("id")}/tracks"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "limit": limit
@@ -75,29 +74,33 @@ def get_album_songs(album, token, limit = 50):
     response = requests.get(url, headers = headers, params = params)
     response.raise_for_status()
 
+    album_songs = response.json()
+
     list_of_songs = []
-    list_of_popularity = []
 
-    for i in range(album.get("total_tracks")):
-        list_of_songs.append(response.json()["items"][i]["name"])
-        list_of_popularity.append(response.json()["items"][i]["popularity"])
+    for song in album_songs["items"]:
+        list_of_songs.append({
+            "name": song["name"],
+            "id": song["id"]
+        })
+    return list_of_songs
 
-    return {list_of_songs, list_of_popularity}
+def get_list_of_songs(artist_ID, token):
+    list_of_album_infos = get_artist_albums_info(artist_ID, token)
 
-def get_set_of_songs(artist_ID, token):
-    albums = get_artist_albums_info(artist_ID, token)
-
-    set_of_songs = set()
+    seen_songs = set()
+    list_of_songs = list()
     excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub"}
 
-    for album in albums: #maybe possible to get lower timp comp? not sure how though to improve 
+    for album in list_of_album_infos: #maybe possible to get lower timp comp? not sure how though to improve 
         songs_in_album = get_album_songs(album, token)
 
         for song in songs_in_album:
-            if (song not in set_of_songs) and not any(keyword in song.lower() for keyword in excluded_keywords):
-                set_of_songs.add(song)
+            if (song["name"] not in seen_songs) and not any(keyword in song["name"].lower() for keyword in excluded_keywords):
+                seen_songs.add(song["name"])
+                list_of_songs.append(song)
 
-    return set_of_songs
+    return list_of_songs
 
 
 
@@ -111,8 +114,8 @@ if __name__ == "__main__":
     if(artist_ID == None):
         print("No artists found")
    
-    set_of_songs = get_set_of_songs(artist_ID, token)
+    list_of_songs = get_list_of_songs(artist_ID, token)
 
-    print(set_of_songs)
+    print(list_of_songs["name"])
 
    
