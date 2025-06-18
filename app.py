@@ -46,7 +46,7 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "include_groups": "album,single", #must be album,single no space idk why compiler needs it to be like that
-        "limit": limit
+        "limit": limit,
     }
 
     list_of_album_info = []
@@ -64,7 +64,7 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
         url = list_of_albums.get("next")
     return list_of_album_info
 
-def get_album_songs(album_info, token, limit = 50):
+def get_album_songs(album_info, token, limit = 50): #technically a dictionary with key name:id but it is liek a list
     url = f"https://api.spotify.com/v1/albums/{album_info.get("id")}/tracks"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
@@ -85,12 +85,12 @@ def get_album_songs(album_info, token, limit = 50):
         })
     return list_of_songs
 
-def get_list_of_songs(artist_ID, token):
+def get_list_of_songs(artist_ID, token): #returns a list of ids that are not duplicates or have keyword errors
     list_of_album_infos = get_artist_albums_info(artist_ID, token)
 
     seen_songs = set()
     list_of_songs = list()
-    excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub"}
+    excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub", "- sped up", "- slow", "version"}
 
     for album in list_of_album_infos: #maybe possible to get lower timp comp? not sure how though to improve 
         songs_in_album = get_album_songs(album, token)
@@ -98,13 +98,49 @@ def get_list_of_songs(artist_ID, token):
         for song in songs_in_album:
             if (song["name"] not in seen_songs) and not any(keyword in song["name"].lower() for keyword in excluded_keywords):
                 seen_songs.add(song["name"])
-                list_of_songs.append(song)
+                list_of_songs.append(song["id"])
 
     return list_of_songs
 
+def get_popularity(ids, token):
+    url = "https://api.spotify.com/v1/tracks"
+    headers = {"Authorization": f"Bearer {token}"}
 
+    song_popularitys = []
 
+    for i in range(0, len(ids), 50): #iterate through songs in chunks of 50 because the limit per api request is 50
+        group = ids[i:i + 50] #setting the group of songs
+        params = {
+            "ids": ",".join(group)
+        }
+        
+        response = requests.get(url, headers = headers, params = params)
+        response.raise_for_status()
 
+        all_songs = response.json()["tracks"]
+
+        for song in all_songs:
+            song_popularitys.append({
+                "name": song["name"],
+                "popularity": 101 - song["popularity"]
+            })
+
+    return song_popularitys
+
+def get_song_with_popularity(popularity_list):
+    songs = [song for song in popularity_list]
+    weights = [song["popularity"] for song in songs]
+
+    total_weight = sum(weights)
+
+    chosen = random.choices(songs, weights=weights, k=1)[0]
+
+    chosen_index = songs.index(chosen)
+    chosen_weight = weights[chosen_index]
+    chosen_chance = (chosen_weight / total_weight) * 100
+
+    print(f'Rolled: {chosen["name"]} with a {chosen_chance:.2f}% chance')
+    return chosen
 
 if __name__ == "__main__":  
     token = get_access_token()
@@ -114,8 +150,10 @@ if __name__ == "__main__":
     if(artist_ID == None):
         print("No artists found")
    
-    list_of_songs = get_list_of_songs(artist_ID, token)
+    list_of_songs_ids = get_list_of_songs(artist_ID, token)
+    popularity_list = get_popularity(list_of_songs_ids, token)
+    chosen_song = get_song_with_popularity(popularity_list)
 
-    print(list_of_songs["name"])
+    print(chosen_song)
 
    
