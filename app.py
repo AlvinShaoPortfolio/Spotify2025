@@ -1,6 +1,10 @@
 import requests #allows me to make http requests
 import os #lets me access env variables
 import random
+import aiohttp
+import asyncio
+#import time
+
 from dotenv import load_dotenv #lets me load the env file
 
 load_dotenv() #load env file into memory
@@ -9,6 +13,7 @@ SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 artist_List = ["Bruno Mars"]
+#start = time.time()
 
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
@@ -25,6 +30,8 @@ def get_access_token():
         print("Failed to get token")
         print("Response:", response.text)
 
+    #print("access_token Elapsed:", time.time() - start)
+
     response.raise_for_status()
     return response.json()["access_token"]
 
@@ -38,6 +45,8 @@ def get_artist_ID(name, token, limit = 1): #artistID is a string
     }
     response = requests.get(url, headers = headers, params = params)
     response.raise_for_status()
+
+    #print("artist_ID Elapsed:", time.time() - start)
 
     return response.json()["artists"]["items"][0]["id"]
 
@@ -62,43 +71,45 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
                 "id" : album["id"],
             })
         url = list_of_albums.get("next")
+
+    #print("artist_albums_info Elapsed:", time.time() - start)
+
     return list_of_album_info
 
-def get_album_songs(album_info, token, limit = 50): #technically a dictionary with key name:id but it is liek a list
+async def get_album_songs(session, album_info, token): #technically a dictionary with key name:id but it is liek a list
     url = f"https://api.spotify.com/v1/albums/{album_info.get("id")}/tracks"
     headers = {"Authorization": f"Bearer {token}"}
-    params = {
-        "limit": limit
-    }
 
-    response = requests.get(url, headers = headers, params = params)
-    response.raise_for_status()
+    async with session.get(url, headers = headers) as response:
+        data = await response.json()
+        return[{
+            "name": track["name"], 
+            "id": track["id"]
+            }
+            for track in data.get("items", [])
+        ]
 
-    album_songs = response.json()
+async def get_all_albums(album_infos, token):
+    async with aiohttp.ClientSession() as session:
+        tasks = [get_album_songs(session, album, token) for album in album_infos]
+        results = await asyncio.gather(*tasks)
+        return [track for album in results for track in album]
 
-    list_of_songs = []
+async def get_list_of_songs(artist_ID, token): #returns a list of ids that are not duplicates or have keyword errors
+    list_of_album_infos = get_artist_albums_info(artist_ID, token, limit = 50)
 
-    for song in album_songs["items"]:
-        list_of_songs.append({
-            "name": song["name"],
-            "id": song["id"]
-        })
-    return list_of_songs
-
-def get_list_of_songs(artist_ID, token): #returns a list of ids that are not duplicates or have keyword errors
-    list_of_album_infos = get_artist_albums_info(artist_ID, token)
+    songs_in_album = await get_all_albums(list_of_album_infos, token)
 
     seen_songs = set()
     list_of_songs = list()
     excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub", "- sped up", "- slow", "version", "live at"}
 
-    for album in list_of_album_infos: #maybe possible to get lower timp comp? not sure how though to improve 
-        songs_in_album = get_album_songs(album, token)
+    for song in songs_in_album:
+        if (song["name"] not in seen_songs) and not any(keyword in song["name"].lower() for keyword in excluded_keywords):
+            seen_songs.add(song["name"])
+            list_of_songs.append(song["id"])
 
-        for song in songs_in_album:
-            if (song["name"] not in seen_songs) and not any(keyword in song["name"].lower() for keyword in excluded_keywords):
-                seen_songs.add(song["name"])
-                list_of_songs.append(song["id"])
+    #print("list_of_songs Elapsed:", time.time() - start)
 
     return list_of_songs
 
@@ -126,6 +137,8 @@ def get_popularity(ids, token):
                 "id": song["id"]
             })
 
+    #print("popularity Elapsed:", time.time() - start)
+
     return song_popularitys
 
 def get_song_with_popularity(popularity_list):
@@ -141,6 +154,7 @@ def get_song_with_popularity(popularity_list):
     #chosen_chance = (chosen_weight / total_weight) * 100
 
     #print(f'Rolled: {chosen["name"]} with a {chosen_chance:.2f}% chance')
+    #print("song_with_popularity Elapsed:", time.time() - start)
     return chosen
 
 def get_album_id(song_id, token):
@@ -152,9 +166,11 @@ def get_album_id(song_id, token):
 
     track_info = response.json()
 
+    #print("album_id Elapsed:", time.time() - start)
+
     return track_info["album"]["images"][0]["url"]
 
-def get_album_cover_and_name(): 
+async def get_album_cover_and_name(): 
     token = get_access_token()
 
     artist_ID = get_artist_ID(random.choice(artist_List), token) #Get the artists Identification based off of their name
@@ -162,7 +178,7 @@ def get_album_cover_and_name():
     if(artist_ID == None):
         print("No artists found")
 
-    list_of_songs_ids = get_list_of_songs(artist_ID, token)
+    list_of_songs_ids = await get_list_of_songs(artist_ID, token)
     popularity_list = get_popularity(list_of_songs_ids, token)
     chosen_song = get_song_with_popularity(popularity_list)
 
