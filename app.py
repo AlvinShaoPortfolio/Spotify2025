@@ -8,7 +8,7 @@ load_dotenv() #load env file into memory
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-artist_List = ["Kendrick Lamar"]
+artist_List = ["Bruno Mars"]
 
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
@@ -90,7 +90,7 @@ def get_list_of_songs(artist_ID, token): #returns a list of ids that are not dup
 
     seen_songs = set()
     list_of_songs = list()
-    excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub", "- sped up", "- slow", "version"}
+    excluded_keywords = {"remix", "instrumental", "radio", "acoustic", "mix", "- live", "dub", "- sped up", "- slow", "version", "live at"}
 
     for album in list_of_album_infos: #maybe possible to get lower timp comp? not sure how though to improve 
         songs_in_album = get_album_songs(album, token)
@@ -122,7 +122,8 @@ def get_popularity(ids, token):
         for song in all_songs:
             song_popularitys.append({
                 "name": song["name"],
-                "popularity": 101 - song["popularity"]
+                "popularity": 101 - song["popularity"],
+                "id": song["id"]
             })
 
     return song_popularitys
@@ -131,29 +132,43 @@ def get_song_with_popularity(popularity_list):
     songs = [song for song in popularity_list]
     weights = [song["popularity"] for song in songs]
 
-    total_weight = sum(weights)
-
     chosen = random.choices(songs, weights=weights, k=1)[0]
 
-    chosen_index = songs.index(chosen)
-    chosen_weight = weights[chosen_index]
-    chosen_chance = (chosen_weight / total_weight) * 100
+    #this commented out section is for the probability of getting the song
+    #total_weight = sum(weights)
+    #chosen_index = songs.index(chosen)
+    #chosen_weight = weights[chosen_index]
+    #chosen_chance = (chosen_weight / total_weight) * 100
 
-    print(f'Rolled: {chosen["name"]} with a {chosen_chance:.2f}% chance')
+    #print(f'Rolled: {chosen["name"]} with a {chosen_chance:.2f}% chance')
     return chosen
 
-if __name__ == "__main__":  
+def get_album_id(song_id, token):
+    url = f"https://api.spotify.com/v1/tracks/{song_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers = headers)
+
+    response.raise_for_status()
+
+    track_info = response.json()
+
+    return track_info["album"]["images"][0]["url"]
+
+def get_album_cover_and_name(): 
     token = get_access_token()
 
     artist_ID = get_artist_ID(random.choice(artist_List), token) #Get the artists Identification based off of their name
 
     if(artist_ID == None):
         print("No artists found")
-   
+
     list_of_songs_ids = get_list_of_songs(artist_ID, token)
     popularity_list = get_popularity(list_of_songs_ids, token)
     chosen_song = get_song_with_popularity(popularity_list)
 
-    print(chosen_song)
+    album_cover = get_album_id(chosen_song["id"], token)
+
+    return chosen_song["name"], album_cover
+    
 
    
