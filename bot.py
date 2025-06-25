@@ -17,12 +17,16 @@ class MyClient(discord.Client):
             return
         
         if message.content.startswith('$music'):
-            name, album_cover = await app.get_album_cover_and_name()
+            name, album_cover, album_name, song_points = await app.get_album_cover_and_name()
             
             embed = discord.Embed(
                 title = name,
-                description = "react with any emote to claim!",
-                color=discord.Color.green()
+                description = (
+                            f"{album_name}\n" 
+                            f"**{song_points}** 🎵\n"
+                            "React with any emote to claim!" 
+                            ),
+                color=discord.Color(0x1DB954)
             )
             embed.set_image(url = album_cover)
 

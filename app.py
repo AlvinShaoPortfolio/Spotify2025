@@ -12,7 +12,7 @@ load_dotenv() #load env file into memory
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-artist_List = ["Bruno Mars"]
+artist_List = ["Billie Eilish"]
 #start = time.time()
 
 def get_access_token():
@@ -81,6 +81,12 @@ async def get_album_songs(session, album_info, token): #technically a dictionary
     headers = {"Authorization": f"Bearer {token}"}
 
     async with session.get(url, headers = headers) as response:
+        if response.status == 429:
+            print("Rate limited by Spotify. Try again later.")
+            return []
+        
+        response.raise_for_status()
+
         data = await response.json()
         return[{
             "name": track["name"], 
@@ -157,7 +163,7 @@ def get_song_with_popularity(popularity_list):
     #print("song_with_popularity Elapsed:", time.time() - start)
     return chosen
 
-def get_album_id(song_id, token):
+def get_album_image(song_id, token):
     url = f"https://api.spotify.com/v1/tracks/{song_id}"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers = headers)
@@ -167,8 +173,10 @@ def get_album_id(song_id, token):
     track_info = response.json()
 
     #print("album_id Elapsed:", time.time() - start)
+    image = track_info["album"]["images"][0]["url"]
+    name = track_info["album"]["name"]
 
-    return track_info["album"]["images"][0]["url"]
+    return image, name
 
 async def get_album_cover_and_name(): 
     token = get_access_token()
@@ -176,15 +184,16 @@ async def get_album_cover_and_name():
     artist_ID = get_artist_ID(random.choice(artist_List), token) #Get the artists Identification based off of their name
 
     if(artist_ID == None):
-        print("No artists found")
+        return None, None, None, None
 
     list_of_songs_ids = await get_list_of_songs(artist_ID, token)
     popularity_list = get_popularity(list_of_songs_ids, token)
     chosen_song = get_song_with_popularity(popularity_list)
 
-    album_cover = get_album_id(chosen_song["id"], token)
+    album_cover, album_name = get_album_image(chosen_song["id"], token)
+    song_points = int(2 ** ((101-chosen_song["popularity"])/10 ) / 2)
 
-    return chosen_song["name"], album_cover
+    return chosen_song["name"], album_cover, album_name, song_points
     
 
    
