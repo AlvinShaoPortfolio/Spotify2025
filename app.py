@@ -181,10 +181,12 @@ def get_album_image(song_id, token):
 async def get_album_cover_and_name(): 
     token = get_access_token()
 
-    artist_ID = get_artist_ID(random.choice(artist_List), token) #Get the artists Identification based off of their name
+    chosen_artist_name = random.choice(artist_List)
+
+    artist_ID = get_artist_ID(chosen_artist_name, token) #Get the artists Identification based off of their name
 
     if(artist_ID == None):
-        return None, None, None, None
+        return None, None, None, None, None
 
     list_of_songs_ids = await get_list_of_songs(artist_ID, token)
     popularity_list = get_popularity(list_of_songs_ids, token)
@@ -193,7 +195,7 @@ async def get_album_cover_and_name():
     album_cover, album_name = get_album_image(chosen_song["id"], token)
     song_points = int(2 ** ((101-chosen_song["popularity"])/10 ) / 2)
 
-    return chosen_song["name"], album_cover, album_name, song_points
+    return chosen_song["name"], album_cover, album_name, song_points, chosen_artist_name
     
 
    

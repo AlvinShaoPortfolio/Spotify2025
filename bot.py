@@ -8,6 +8,8 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
+song_claim_map = {} #temp store song when they emote
+
 class MyClient(discord.Client):
     async def on_ready(self): #starts the bot
         print('Logged on as {0}!'.format(self.user))
@@ -17,23 +19,50 @@ class MyClient(discord.Client):
             return
         
         if message.content.startswith('$music'):
-            name, album_cover, album_name, song_points = await app.get_album_cover_and_name()
+            name, album_cover, album_name, song_points, chosen_artist_name = await app.get_album_cover_and_name()
             
             embed = discord.Embed(
                 title = name,
                 description = (
+                            f"{chosen_artist_name}\n" 
                             f"{album_name}\n" 
                             f"**{song_points}** 🎵\n"
-                            "React with any emote to claim!" 
+                            "Click the music emoji to claim!" 
                             ),
                 color=discord.Color(0x1DB954)
             )
             embed.set_image(url = album_cover)
 
-            await message.channel.send(embed = embed)
+            embed_message = await message.channel.send(embed = embed)
+
+            song_claim_map[embed_message.id] = {
+                "name": name,
+                "album": album_name,
+                "points": song_points,
+                "artist": chosen_artist_name,
+                "claimed": False
+            }
+
+            await embed_message.add_reaction("🎵")
+    
+    async def on_reaction_add(self, reaction, user):
+        if user == client.user: #prevents it from detecting itself
+            return
+        
+        if reaction.emoji == "🎵":
+            message_id = reaction.message.id
+
+            claimed_song = song_claim_map.get(message_id)
+
+            if claimed_song:
+                print(claimed_song)
+                claimed_song["claimed"] = True
+                claimed_song["owner_id"] = user.id
+                await reaction.message.channel.send(f"🎶 **{user.name}** is jamming out to **{claimed_song['name']}** 🎶")
 
 intents = discord.Intents.default() #what the bot can interact with
 intents.message_content = True
+intents.reactions = True
 
 client = MyClient(intents = intents) #start the bot
 client.run(DISCORD_TOKEN)
