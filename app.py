@@ -3,9 +3,10 @@ import os #lets me access env variables
 import random
 import aiohttp
 import asyncio
-#import time
+import time
 
 from dotenv import load_dotenv #lets me load the env file
+from firebase_handler import get_cached_artist, cache_artist_songs
 
 load_dotenv() #load env file into memory
 
@@ -13,7 +14,7 @@ SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 artist_List = ["Billie Eilish"]
-#start = time.time()
+start = time.time()
 
 def get_access_token():
     url = "https://accounts.spotify.com/api/token"
@@ -61,6 +62,12 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
     list_of_album_info = []
     while(url != None):
         response = requests.get(url, headers = headers, params = params)
+
+        if response.status_code == 429:
+            retry_after = int(response.headers.get("Retry-After", 1))
+            print(f"Rate limited. Retrying after {retry_after} seconds.")
+            time.sleep(retry_after)
+            continue
         response.raise_for_status()
 
         list_of_albums = response.json()
@@ -178,9 +185,8 @@ def get_album_image(song_id, token):
 
     return image, name
 
-async def get_album_cover_and_name(): 
+async def get_song_info(): 
     token = get_access_token()
-
     chosen_artist_name = random.choice(artist_List)
 
     artist_ID = get_artist_ID(chosen_artist_name, token) #Get the artists Identification based off of their name
@@ -188,10 +194,26 @@ async def get_album_cover_and_name():
     if(artist_ID == None):
         return None, None, None, None, None
 
-    list_of_songs_ids = await get_list_of_songs(artist_ID, token)
-    popularity_list = get_popularity(list_of_songs_ids, token)
-    chosen_song = get_song_with_popularity(popularity_list)
+    cached_info = get_cached_artist(artist_ID)
 
+    if cached_info: #if the artist is within the cache already pull from cache
+        print("used cache")
+        popularity_list = cached_info
+    else: #otherwise pull from the api
+        print("used api call")
+        list_of_songs_ids = await get_list_of_songs(artist_ID, token)
+        popularity_list = get_popularity(list_of_songs_ids, token)
+
+        artist_cache = []
+        for song in popularity_list:
+            song_to_cache = ({"name": song["name"], 
+                                "id": song["id"], 
+                                "popularity": song["popularity"]
+                            })
+            artist_cache.append(song_to_cache)
+        cache_artist_songs(artist_ID, chosen_artist_name, artist_cache)
+
+    chosen_song = get_song_with_popularity(popularity_list)
     album_cover, album_name = get_album_image(chosen_song["id"], token)
     song_points = int(2 ** ((101-chosen_song["popularity"])/10 ) / 2)
 

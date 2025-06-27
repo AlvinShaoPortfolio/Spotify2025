@@ -3,6 +3,7 @@ import os
 import app
 
 from dotenv import load_dotenv #lets me load the env file
+from firebase_handler import store_claimed_song
 
 load_dotenv()
 
@@ -19,12 +20,11 @@ class MyClient(discord.Client):
             return
         
         if message.content.startswith('$music'):
-            name, album_cover, album_name, song_points, chosen_artist_name = await app.get_album_cover_and_name()
+            name, album_cover, album_name, song_points, chosen_artist_name = await app.get_song_info()
             
             embed = discord.Embed(
-                title = name,
+                title = f"{name} - by {chosen_artist_name}",
                 description = (
-                            f"{chosen_artist_name}\n" 
                             f"{album_name}\n" 
                             f"**{song_points}** 🎵\n"
                             "Click the music emoji to claim!" 
@@ -57,8 +57,11 @@ class MyClient(discord.Client):
             if claimed_song:
                 print(claimed_song)
                 claimed_song["claimed"] = True
-                claimed_song["owner_id"] = user.id
+                
+                store_claimed_song(user.name, claimed_song)
+
                 await reaction.message.channel.send(f"🎶 **{user.name}** is jamming out to **{claimed_song['name']}** 🎶")
+
 
 intents = discord.Intents.default() #what the bot can interact with
 intents.message_content = True
