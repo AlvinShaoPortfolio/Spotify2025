@@ -58,9 +58,9 @@ class MyClient(discord.Client):
                 print(claimed_song)
                 claimed_song["claimed"] = True
                 
-                store_claimed_song(user.name, claimed_song)
+                store_claimed_song(user.id, user.name, claimed_song)
 
-                await reaction.message.channel.send(f"🎶 **{user.name}** is jamming out to **{claimed_song['name']}** 🎶")
+                await reaction.message.channel.send(f"🎶 **{user.display_name}** is jamming out to **{claimed_song['name']}** 🎶")
 
 
 intents = discord.Intents.default() #what the bot can interact with

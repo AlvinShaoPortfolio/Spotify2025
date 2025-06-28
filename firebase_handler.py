@@ -8,11 +8,14 @@ firebase_admin.initialize_app(cred) #initialize app with private key
 
 db = firestore.client() #firestore client object. Lets you interact with the db basically
 
-def store_claimed_song(user, song_info):
-    user_ref = db.collection("users").document(str(user))
-    doc_ref = user_ref.collection("claimed_songs").document(song_info["name"]) #where the storage reference is
+def store_claimed_song(user_id, user_name, song_info):
+    user_ref = db.collection("users").document(str(user_id))
 
-    doc_ref.set({ #storing song info
+    user_ref.set({"name": user_name}, merge = True) #merge to avoid overwriting data
+
+    song_ref = user_ref.collection("claimed_songs").document(song_info["name"]) #where the storage reference is
+
+    song_ref.set({ #storing song info
         "song_name": song_info["name"],
         "artist_name": song_info["artist"],
         "album_name": song_info["album"],
