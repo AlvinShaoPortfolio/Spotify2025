@@ -1,5 +1,4 @@
 import firebase_admin 
-
 from firebase_admin import credentials, firestore #auth app using a service account key and working with firestore db
 
 cred = credentials.Certificate("firebaseKey.json") #loads private key
@@ -7,6 +6,17 @@ cred = credentials.Certificate("firebaseKey.json") #loads private key
 firebase_admin.initialize_app(cred) #initialize app with private key
 
 db = firestore.client() #firestore client object. Lets you interact with the db basically
+
+def check_song_in_server(server_id, song_id):
+    doc_ref = db.collection("servers").document(str(server_id)).collection("claimed_songs").document(song_id).get() #retrieving the song by its id
+    return doc_ref.exists #returns true if exists
+
+def store_in_server(server_id, song_id, user_id, song_name): #just storing the id as collection 
+    claimed_cache_ref = db.collection("servers").document(str(server_id)).collection("claimed_songs").document(str(song_name))
+    claimed_cache_ref.set({
+        "song_id": song_id,
+        "user_id": user_id,
+    })
 
 def store_claimed_song(user_id, user_name, song_info):
     user_ref = db.collection("users").document(str(user_id))
@@ -22,6 +32,8 @@ def store_claimed_song(user_id, user_name, song_info):
         "points": song_info["points"],
     })
 
+#cache of artist songs / not dealing with users ----------------------------------------------------------
+
 def cache_artist_songs(artist_id, artist_name, songs):
     doc_ref = db.collection("artists").document(artist_id) #storing artist reference under their artist_id
 
@@ -31,8 +43,8 @@ def cache_artist_songs(artist_id, artist_name, songs):
     })
 
 def get_cached_artist(artist_id):
-    doc = db.collection("artists").document(artist_id).get()
-    if doc.exists:
-        return doc.to_dict().get("songs", [])
+    doc_ref = db.collection("artists").document(artist_id).get()
+    if doc_ref.exists:
+        return doc_ref.to_dict().get("songs", [])
     return None
 

@@ -4,7 +4,6 @@ import random
 import aiohttp
 import asyncio
 import time
-
 from dotenv import load_dotenv #lets me load the env file
 from firebase_handler import get_cached_artist, cache_artist_songs
 
@@ -217,7 +216,7 @@ async def get_song_info():
     album_cover, album_name = get_album_image(chosen_song["id"], token)
     song_points = int(2 ** ((101-chosen_song["popularity"])/10 ) / 2)
 
-    return chosen_song["name"], album_cover, album_name, song_points, chosen_artist_name
+    return chosen_song["id"], chosen_song["name"], album_cover, album_name, song_points, chosen_artist_name
     
 
    
