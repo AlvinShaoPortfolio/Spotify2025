@@ -74,8 +74,8 @@ class MyClient(discord.Client):
             server_id = reaction.message.guild.id
             claimed_song = song_claim_map.get(message_id)
                 
-            if claimed_song and not claimed_song.get("claimed"):
-                if user_already_claimed_song(user.id, claimed_song["id"]):
+            if claimed_song and not claimed_song.get("claimed") and not check_song_in_server(server_id, claimed_song.get("id")): #checking the session because firebase isnt fast enough if you directly claim after someone else claims
+                if user_already_claimed_song(user.id, claimed_song["id"]): #checking firebase for the songs that were claimed outside the session ------------------------------------------------------------ other people can claim react to your claimed songs because im not checking serverside
                     return
                 store_in_server(server_id, claimed_song["id"], user.id, claimed_song["name"]) #store in server to check for dupes later
                 store_claimed_song(user.id, user.name, claimed_song) #store within the user inventory
