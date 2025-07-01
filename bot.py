@@ -5,6 +5,8 @@ from dotenv import load_dotenv #lets me load the env file
 from firebase_handler import store_claimed_song
 from firebase_handler import check_song_in_server
 from firebase_handler import store_in_server
+from firebase_handler import retrieve_song_holder
+from firebase_handler import user_already_claimed_song
 
 load_dotenv()
 
@@ -20,7 +22,7 @@ class MyClient(discord.Client):
         if message.author == self.user:
             return
         
-        if message.content.startswith('$music'):
+        if message.content.lower().startswith('$music'):
             song_id, song_name, album_cover, album_name, song_points, chosen_artist_name = await app.get_song_info()
 
             server_id = message.guild.id
@@ -32,6 +34,7 @@ class MyClient(discord.Client):
                     description = (
                             f"{album_name}\n" 
                             f"**{song_points}** 🎵\n"
+                            f"Owned by **{retrieve_song_holder(server_id, song_id)}**"
                             ),
                     color=discord.Color(0xFF0000)
                 )
@@ -71,15 +74,14 @@ class MyClient(discord.Client):
             server_id = reaction.message.guild.id
             claimed_song = song_claim_map.get(message_id)
                 
-            if claimed_song and claimed_song.get("claimed"): 
-                await reaction.message.channel.send(f"🎶 **name** already claimed this song **{claimed_song['name']}** 🎶")
-            else:
-                print(claimed_song)
-
+            if claimed_song and not claimed_song.get("claimed"):
+                if user_already_claimed_song(user.id, claimed_song["id"]):
+                    return
                 store_in_server(server_id, claimed_song["id"], user.id, claimed_song["name"]) #store in server to check for dupes later
                 store_claimed_song(user.id, user.name, claimed_song) #store within the user inventory
 
                 song_claim_map[message_id]["claimed"] = True
+                print(claimed_song)
 
                 await reaction.message.channel.send(f"🎶 **{user.display_name}** is jamming out to **{claimed_song['name']}** 🎶")
 
