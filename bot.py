@@ -11,6 +11,7 @@ from firebase_handler import store_in_server
 from firebase_handler import retrieve_song_holder
 from firebase_handler import user_already_claimed_song
 from firebase_handler import return_all_songs
+from firebase_handler import return_total_popularity
 
 load_dotenv()
 
@@ -26,6 +27,27 @@ class MyClient(discord.Client):
         if message.author == self.user:
             return
         
+        if message.content.lower().startswith('$pop'):
+            server_id = str(message.guild.id)
+            user_id = str(message.author.id)
+            total_popularity = return_total_popularity(server_id, user_id)
+
+            embed = discord.Embed(
+                title="🌟 Total Popularity Score 🌟",
+                description=(
+                    f"**{message.author.display_name}**, your claimed songs have a combined popularity value of:\n\n"
+                    f"🎵 **{total_popularity:,} points!**"
+                ),
+                color=discord.Color.pink()
+            )
+
+            embed.set_thumbnail(url=message.author.avatar.url if message.author.avatar else discord.Embed.Empty)
+            embed.set_footer(text="Keep claiming songs to grow your collection!")
+
+            await message.channel.send(embed=embed)
+            
+        #---------------------------------------------------------------------------------------------------------------------------
+
         if message.content.lower().startswith('$collection'):
             server_id = message.guild.id
             user_id = str(message.author.id)

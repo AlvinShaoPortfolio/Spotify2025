@@ -53,10 +53,20 @@ def return_all_songs(server_id, user_id):
 
     claimed_songs = []
     for song in collection_ref:
-        song_data = song.to_dict()
+        song_data = song.to_dict() #convert the discord data into a dict
         claimed_songs.append(song_data)
 
     return claimed_songs
+
+def return_total_popularity(server_id, user_id):
+    collection_ref = db.collection("servers").document(str(server_id)).collection("users").document(user_id).collection("claimed_songs").get()
+
+    popularity_count = 0
+
+    for song in collection_ref:
+        song_data = song.to_dict() #convert the discord data into a dict
+        popularity_count += song_data.get("points", 0)
+    return popularity_count
 
 #cache of artist songs / not dealing with users ----------------------------------------------------------
 
