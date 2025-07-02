@@ -7,8 +7,8 @@ firebase_admin.initialize_app(cred) #initialize app with private key
 
 db = firestore.client() #firestore client object. Lets you interact with the db basically
 
-def user_already_claimed_song(user_id, song_id):
-    doc_ref = db.collection("users").document(str(user_id)).collection("claimed_songs").document(song_id).get()
+def user_already_claimed_song(server_id, user_id, song_id):
+    doc_ref = db.collection("servers").document(str(server_id)).collection("users").document(str(user_id)).collection("claimed_songs").document(song_id).get()
     return doc_ref.exists
 
 def check_song_in_server(server_id, song_id):
@@ -22,8 +22,8 @@ def store_in_server(server_id, song_id, user_id, song_name): #just storing the i
         "user_id": user_id,
     })
 
-def store_claimed_song(user_id, user_name, song_info):
-    user_ref = db.collection("users").document(str(user_id))
+def store_claimed_song(server_id, user_id, user_name, song_info):
+    user_ref = db.collection("servers").document(str(server_id)).collection("users").document(str(user_id))
 
     user_ref.set({"name": user_name}, merge = True) #merge to avoid overwriting data
 
@@ -42,11 +42,21 @@ def retrieve_song_holder(server_id, song_id):
     if(user_ref.exists):
         user_id = user_ref.get("user_id")
 
-        name_ref = db.collection("users").document(str(user_id)).get()
+        name_ref = db.collection("servers").document(str(server_id)).collection("users").document(str(user_id)).get()
 
         if (name_ref.exists):
             return name_ref.get("name")
     return None
+
+def return_all_songs(server_id, user_id):
+    collection_ref = db.collection("servers").document(str(server_id)).collection("users").document(user_id).collection("claimed_songs").order_by("points", direction= firestore.Query.DESCENDING).get()
+
+    claimed_songs = []
+    for song in collection_ref:
+        song_data = song.to_dict()
+        claimed_songs.append(song_data)
+
+    return claimed_songs
 
 #cache of artist songs / not dealing with users ----------------------------------------------------------
 
@@ -63,4 +73,3 @@ def get_cached_artist(artist_id):
     if doc_ref.exists:
         return doc_ref.to_dict().get("songs", [])
     return None
-

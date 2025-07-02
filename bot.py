@@ -1,18 +1,22 @@
 import discord
 import os
 import app
+
+from math import ceil
+from discord.ui import View, Button #interactive buttons for $collection
 from dotenv import load_dotenv #lets me load the env file
 from firebase_handler import store_claimed_song
 from firebase_handler import check_song_in_server
 from firebase_handler import store_in_server
 from firebase_handler import retrieve_song_holder
 from firebase_handler import user_already_claimed_song
+from firebase_handler import return_all_songs
 
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
-song_claim_map = {} #temp store song when they emote
+song_claim_map = {}#temp store song when they emote
 
 class MyClient(discord.Client):
     async def on_ready(self): #starts the bot
@@ -21,6 +25,21 @@ class MyClient(discord.Client):
     async def on_message(self, message): #waits for a message and sends a response
         if message.author == self.user:
             return
+        
+        if message.content.lower().startswith('$collection'):
+            server_id = message.guild.id
+            user_id = str(message.author.id)
+            claimed_songs = return_all_songs(server_id, user_id)
+
+            if not claimed_songs:
+                await message.channel.send("You haven't claimed any songs yet.")
+                return
+
+            view = CollectionView(message.author, claimed_songs)
+            embed = view.build_embed()
+            await message.channel.send(embed=embed, view=view)
+
+        #--------------------------------------------------------------------------------------------------------------------------------------    
         
         if message.content.lower().startswith('$music'):
             song_id, song_name, album_cover, album_name, song_points, chosen_artist_name = await app.get_song_info()
@@ -65,26 +84,74 @@ class MyClient(discord.Client):
                 await embed_message.add_reaction("🎵")
     
     async def on_reaction_add(self, reaction, user):
-        if user == client.user: #prevents it from detecting itself
+        if user == self.user: #prevents it from detecting itself
             return
+
+        message_id = reaction.message.id
+        server_id = reaction.message.guild.id
+        claimed_song = song_claim_map.get(message_id)
         
         if reaction.emoji == "🎵":
-
-            message_id = reaction.message.id
-            server_id = reaction.message.guild.id
-            claimed_song = song_claim_map.get(message_id)
-                
             if claimed_song and not claimed_song.get("claimed") and not check_song_in_server(server_id, claimed_song.get("id")): #checking the session because firebase isnt fast enough if you directly claim after someone else claims
-                if user_already_claimed_song(user.id, claimed_song["id"]): #checking firebase for the songs that were claimed outside the session ------------------------------------------------------------ other people can claim react to your claimed songs because im not checking serverside
+                if user_already_claimed_song(server_id, user.id, claimed_song["id"]): #checking firebase for the songs that were claimed outside the session ------------------------------------------------------------ other people can claim react to your claimed songs because im not checking serverside
                     return
                 store_in_server(server_id, claimed_song["id"], user.id, claimed_song["name"]) #store in server to check for dupes later
-                store_claimed_song(user.id, user.name, claimed_song) #store within the user inventory
+                store_claimed_song(server_id, user.id, user.name, claimed_song) #store within the user inventory
 
                 song_claim_map[message_id]["claimed"] = True
                 print(claimed_song)
 
                 await reaction.message.channel.send(f"🎶 **{user.display_name}** is jamming out to **{claimed_song['name']}** 🎶")
+        
 
+class CollectionView(View): #the interactive button for $colleciton
+    def __init__(self, user, claimed_songs, *, timeout=60):
+        super().__init__(timeout=timeout)
+        self.user = user
+        self.claimed_songs = claimed_songs
+        self.page = 0
+
+    def build_embed(self):
+        total_pages = ceil(len(self.claimed_songs) / 10)
+        start = self.page * 10
+        end = start + 10
+
+        embed = discord.Embed(
+            title=f"🏆 {self.user.display_name}'s Top Songs",
+            description="These are your top songs by popularity value!",
+            color=discord.Color.gold()
+        )
+
+        for i, song in enumerate(self.claimed_songs[start:end], start=start + 1):
+            embed.add_field(
+                name=f"#{i} - {song.get('song_name', 'Unknown Song')} 🎶 - by {song.get('artist_name', 'Unknown Artist')}",
+                value=f"{song.get('album_name', 'Unknown Album')}\nPopularity Value: {song.get('points', 0)}",
+                inline=False
+            )
+
+        embed.set_footer(text=f"Page {self.page + 1} / {total_pages}")
+        return embed
+
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.blurple)
+    async def previous(self, interaction: discord.Interaction, button: Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("This isn't your collection.", ephemeral=True)
+            return
+
+        if self.page > 0:
+            self.page -= 1
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.blurple)
+    async def next(self, interaction: discord.Interaction, button: Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("This isn't your collection.", ephemeral=True)
+            return
+
+        max_page = ceil(len(self.claimed_songs) / 10) - 1
+        if self.page < max_page:
+            self.page += 1
+            await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
 intents = discord.Intents.default() #what the bot can interact with
 intents.message_content = True
