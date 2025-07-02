@@ -1,6 +1,8 @@
 import discord
 import os
 import app
+import asyncio
+import time
 
 from math import ceil
 from discord.ui import View, Button #interactive buttons for $collection
@@ -12,12 +14,17 @@ from firebase_handler import retrieve_song_holder
 from firebase_handler import user_already_claimed_song
 from firebase_handler import return_all_songs
 from firebase_handler import return_total_popularity
+from collections import defaultdict
 
 load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 song_claim_map = {}#temp store song when they emote
+
+user_cooldowns = defaultdict(list)
+MAX_USES = 10
+TIME_WINDOW = 60 * 60
 
 class MyClient(discord.Client):
     async def on_ready(self): #starts the bot
@@ -27,7 +34,7 @@ class MyClient(discord.Client):
         if message.author == self.user:
             return
         
-        if message.content.lower().startswith('$pop'):
+        if message.content.lower().startswith('$popularity'):
             server_id = str(message.guild.id)
             user_id = str(message.author.id)
             total_popularity = return_total_popularity(server_id, user_id)
@@ -64,7 +71,34 @@ class MyClient(discord.Client):
         #--------------------------------------------------------------------------------------------------------------------------------------    
         
         if message.content.lower().startswith('$music'):
-            song_id, song_name, album_cover, album_name, song_points, chosen_artist_name = await app.get_song_info()
+            user_id = message.author.id
+            now = time.time()
+
+            user_cooldowns[user_id] = [ts for ts in user_cooldowns[user_id] if now - ts < 3600]
+
+            if len(user_cooldowns[user_id]) >= 10:
+                earliest_time = min(user_cooldowns[user_id])
+                retry_after = int((earliest_time + 3600 - now) / 60) + 1
+                await message.channel.send(f"⛔ You've reached your **rolling limit** (10 per hour). Try again in **{retry_after}** minute(s).")
+                return
+            
+            user_cooldowns[user_id].append(now)
+            remaining_uses = MAX_USES - len(user_cooldowns[user_id])
+
+            try:
+                song_info = await asyncio.wait_for(app.get_song_info(), timeout=20)
+            except asyncio.TimeoutError:
+                await message.channel.send("⏱️ Song fetch timed out!")
+                return
+            except Exception as e:
+                await message.channel.send(f"⚠️ Error fetching song: {e}")
+                return
+
+            if not song_info or song_info[0] is None:
+                await message.channel.send("🚫 Could not fetch a valid song. Try again later.")
+                return
+
+            song_id, song_name, album_cover, album_name, song_points, chosen_artist_name = song_info
 
             server_id = message.guild.id
             is_song_in_server = check_song_in_server(server_id, song_id)
@@ -75,7 +109,7 @@ class MyClient(discord.Client):
                     description = (
                             f"{album_name}\n" 
                             f"**{song_points}** 🎵\n"
-                            f"Owned by **{retrieve_song_holder(server_id, song_id)}**"
+                            f"Owned by **{retrieve_song_holder(server_id, song_id)}**\n"
                             ),
                     color=discord.Color(0xFF0000)
                 )
@@ -85,11 +119,13 @@ class MyClient(discord.Client):
                     description = (
                                 f"{album_name}\n" 
                                 f"**{song_points}** 🎵\n"
-                                "Click the music emoji to claim!" 
+                                "Click the music emoji to claim!\n" 
                                 ),
                     color=discord.Color(0x1DB954)
                 )
             embed.set_image(url = album_cover)
+            embed.set_footer(text=f"🎱 You have {remaining_uses} spin attempt(s) left this hour.")
+
 
             embed_message = await message.channel.send(embed = embed)
 

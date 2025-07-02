@@ -12,7 +12,18 @@ load_dotenv() #load env file into memory
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-artist_List = ["Billie Eilish"]
+artist_List = [
+    "Taylor Swift", "The Weeknd", "Drake", "Adele", "Ed Sheeran",
+    "Billie Eilish", "Kendrick Lamar", "Doja Cat", "Bruno Mars", "Olivia Rodrigo",
+    "Post Malone", "SZA", "Ariana Grande", "Dua Lipa", "Bad Bunny",
+    "Travis Scott", "Harry Styles", "Nicki Minaj", "Beyoncé", "Justin Bieber",
+    "Rihanna", "J. Cole", "Tyler, The Creator", "Miley Cyrus", "Imagine Dragons",
+    "Linkin Park", "Lil Nas X", "21 Savage", "Lizzo", "Frank Ocean",
+    "Metro Boomin", "Steve Lacy", "BLACKPINK", "NewJeans", "Stray Kids",
+    "TXT", "ENHYPEN", "IVE", "TWICE", "LE SSERAFIM",
+    "Red Velvet", "EXO", "SEVENTEEN", "NCT Dream", "SHINee",
+    "Lana Del Rey", "Kali Uchis", "Playboi Carti", "Ice Spice", "Peso Pluma"
+]
 start = time.time()
 
 def get_access_token():
@@ -24,15 +35,12 @@ def get_access_token():
         "client_secret": SPOTIFY_CLIENT_SECRET
     }
 
-    response = requests.post(url, headers=headers, data=data, auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET))
-
-    if response.status_code != 200:
-        print("Failed to get token")
-        print("Response:", response.text)
-
-    #print("access_token Elapsed:", time.time() - start)
-
-    response.raise_for_status()
+    try:
+        response = requests.post(url, headers=headers, data=data, auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET))
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"[get_access_token] Failed to get token: {e}")
+        return None
     return response.json()["access_token"]
 
 def get_artist_ID(name, token, limit = 1): #artistID is a string
@@ -82,28 +90,31 @@ def get_artist_albums_info(id, token, limit = 50): #api call the album ids along
 
     return list_of_album_info
 
-async def get_album_songs(session, album_info, token): #technically a dictionary with key name:id but it is liek a list
-    url = f"https://api.spotify.com/v1/albums/{album_info.get("id")}/tracks"
-    headers = {"Authorization": f"Bearer {token}"}
+async def get_album_songs(session, album_info, token, sem): #technically a dictionary with key name:id but it is liek a list
+    async with sem:
+        url = f"https://api.spotify.com/v1/albums/{album_info.get("id")}/tracks"
+        headers = {"Authorization": f"Bearer {token}"}
 
-    async with session.get(url, headers = headers) as response:
-        if response.status == 429:
-            print("Rate limited by Spotify. Try again later.")
-            return []
-        
-        response.raise_for_status()
+        async with session.get(url, headers = headers) as response:
+            if response.status == 429:
+                retry_after = int(response.headers.get("Retry-After", 1))
+                print(f"Rate limited on album. Retrying after {retry_after} seconds.")
+                await asyncio.sleep(retry_after)
+                return await get_album_songs(session, album_info, token, sem)
 
-        data = await response.json()
-        return[{
-            "name": track["name"], 
-            "id": track["id"]
-            }
-            for track in data.get("items", [])
-        ]
+            response.raise_for_status()
+            data = await response.json()
+            return[{
+                "name": track["name"], 
+                "id": track["id"]
+                }
+                for track in data.get("items", [])
+            ]
 
 async def get_all_albums(album_infos, token):
+    sem = asyncio.Semaphore(5)
     async with aiohttp.ClientSession() as session:
-        tasks = [get_album_songs(session, album, token) for album in album_infos]
+        tasks = [get_album_songs(session, album, token, sem) for album in album_infos]
         results = await asyncio.gather(*tasks)
         return [track for album in results for track in album]
 
@@ -137,8 +148,15 @@ def get_popularity(ids, token):
             "ids": ",".join(group)
         }
         
-        response = requests.get(url, headers = headers, params = params)
-        response.raise_for_status()
+        while True:
+            response = requests.get(url, headers = headers, params = params)
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", 1))
+                print(f"Rate limited on popularity. Retrying after {retry_after} seconds.")
+                time.sleep(retry_after)
+                continue
+            response.raise_for_status()
+            break
 
         all_songs = response.json()["tracks"]
 
@@ -186,12 +204,17 @@ def get_album_image(song_id, token):
 
 async def get_song_info(): 
     token = get_access_token()
-    chosen_artist_name = random.choice(artist_List)
 
+    if token is None:
+        print("Token fetch failed. Skipping this round.")
+        return None, None, None, None, None, None
+
+    chosen_artist_name = random.choice(artist_List)
+    print(chosen_artist_name)
     artist_ID = get_artist_ID(chosen_artist_name, token) #Get the artists Identification based off of their name
 
     if(artist_ID == None):
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
     cached_info = get_cached_artist(artist_ID)
 
@@ -200,9 +223,14 @@ async def get_song_info():
         popularity_list = cached_info
     else: #otherwise pull from the api
         print("used api call")
-        list_of_songs_ids = await get_list_of_songs(artist_ID, token)
-        popularity_list = get_popularity(list_of_songs_ids, token)
 
+        try:
+            list_of_songs_ids = await get_list_of_songs(artist_ID, token)
+            popularity_list = get_popularity(list_of_songs_ids, token)
+        except Exception as e:
+            print(f"Error fetching songs or popularity: {e}")
+            return None
+        
         artist_cache = []
         for song in popularity_list:
             song_to_cache = ({"name": song["name"], 
