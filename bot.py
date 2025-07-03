@@ -23,6 +23,7 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 song_claim_map = {}#temp store song when they emote
 
 user_cooldowns = defaultdict(list)
+claim_cooldowns = defaultdict(float)
 MAX_USES = 10
 TIME_WINDOW = 60 * 60
 
@@ -70,7 +71,7 @@ class MyClient(discord.Client):
 
         #--------------------------------------------------------------------------------------------------------------------------------------    
         
-        if message.content.lower().startswith('$music'):
+        if message.content.lower().startswith('$mu'):
             user_id = message.author.id
             now = time.time()
 
@@ -135,7 +136,8 @@ class MyClient(discord.Client):
                 "album": album_name,
                 "points": song_points,
                 "artist": chosen_artist_name,
-                "claimed": False
+                "claimed": False,
+                "timestamp": time.time()
             }
 
             if(not is_song_in_server):
@@ -144,12 +146,25 @@ class MyClient(discord.Client):
     async def on_reaction_add(self, reaction, user):
         if user == self.user: #prevents it from detecting itself
             return
+    
+        now = time.time()
+        last_claim_time = claim_cooldowns.get(user.id, 0)
+
+        if now - last_claim_time < TIME_WINDOW: #Checks to see if you already claimed in the last hour
+            remaining = int((TIME_WINDOW - (now - last_claim_time)) / 60) + 1
+            await reaction.message.channel.send(
+                f"⛔ **{user.display_name}**, you've already claimed a song this hour. Try again in {remaining} minute(s)."
+            )
+            return
 
         message_id = reaction.message.id
         server_id = reaction.message.guild.id
         claimed_song = song_claim_map.get(message_id)
+
+        if time.time() - claimed_song["timestamp"] > 60: #checks to see if the claim is within the last minute
+            return
         
-        if reaction.emoji == "🎵":
+        if reaction.emoji == "🎵": 
             if claimed_song and not claimed_song.get("claimed") and not check_song_in_server(server_id, claimed_song.get("id")): #checking the session because firebase isnt fast enough if you directly claim after someone else claims
                 if user_already_claimed_song(server_id, user.id, claimed_song["id"]): #checking firebase for the songs that were claimed outside the session ------------------------------------------------------------ other people can claim react to your claimed songs because im not checking serverside
                     return
@@ -159,7 +174,9 @@ class MyClient(discord.Client):
                 song_claim_map[message_id]["claimed"] = True
                 print(claimed_song)
 
-                await reaction.message.channel.send(f"🎶 **{user.display_name}** is jamming out to **{claimed_song['name']}** 🎶")
+                claim_cooldowns[user.id] = now
+
+                await reaction.message.channel.send(f"🎶 **{user.display_name}** is listening to **{claimed_song['name']}** 🎶")
         
 
 class CollectionView(View): #the interactive button for $colleciton

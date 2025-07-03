@@ -22,7 +22,9 @@ artist_List = [
     "Metro Boomin", "Steve Lacy", "BLACKPINK", "NewJeans", "Stray Kids",
     "TXT", "ENHYPEN", "IVE", "TWICE", "LE SSERAFIM",
     "Red Velvet", "EXO", "SEVENTEEN", "NCT Dream", "SHINee",
-    "Lana Del Rey", "Kali Uchis", "Playboi Carti", "Ice Spice", "Peso Pluma"
+    "Lana Del Rey", "Kali Uchis", "Playboi Carti", "Ice Spice", "Peso Pluma", 
+    "Fear, and Loathing in Las Vegas", "IU", "THE ORAL CIGARETTES", "Ryokuoushoku Shakai", "LOVEBITES", "Sumika",
+    "KANA-BOON", "Dokkan Battle Original Soundtrack"
 ]
 start = time.time()
 
