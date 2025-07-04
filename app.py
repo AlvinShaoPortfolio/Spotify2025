@@ -4,6 +4,7 @@ import random
 import aiohttp
 import asyncio
 import time
+import json #access json file
 from dotenv import load_dotenv #lets me load the env file
 from firebase_handler import get_cached_artist, cache_artist_songs
 
