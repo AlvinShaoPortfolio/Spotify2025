@@ -13,20 +13,12 @@ load_dotenv() #load env file into memory
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
-artist_List = [
-    "Taylor Swift", "The Weeknd", "Drake", "Adele", "Ed Sheeran",
-    "Billie Eilish", "Kendrick Lamar", "Doja Cat", "Bruno Mars", "Olivia Rodrigo",
-    "Post Malone", "SZA", "Ariana Grande", "Dua Lipa", "Bad Bunny",
-    "Travis Scott", "Harry Styles", "Nicki Minaj", "Beyoncé", "Justin Bieber",
-    "Rihanna", "J. Cole", "Tyler, The Creator", "Miley Cyrus", "Imagine Dragons",
-    "Linkin Park", "Lil Nas X", "21 Savage", "Lizzo", "Frank Ocean",
-    "Metro Boomin", "Steve Lacy", "BLACKPINK", "NewJeans", "Stray Kids",
-    "TXT", "ENHYPEN", "IVE", "TWICE", "LE SSERAFIM",
-    "Red Velvet", "EXO", "SEVENTEEN", "NCT Dream", "SHINee",
-    "Lana Del Rey", "Kali Uchis", "Playboi Carti", "Ice Spice", "Peso Pluma", 
-    "Fear, and Loathing in Las Vegas", "IU", "THE ORAL CIGARETTES", "Ryokuoushoku Shakai", "LOVEBITES", "Sumika",
-    "KANA-BOON", "Dokkan Battle Original Soundtrack"
-]
+file_Path = os.path.dirname(__file__)
+json_path = os.path.join(file_Path, 'artistnames.json')
+
+with open(json_path, 'r', encoding='utf-8') as f:
+    artist_List = json.load(f)
+
 start = time.time()
 
 def get_access_token():
